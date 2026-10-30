@@ -7,190 +7,189 @@
 <meta name="description" content="West Covina trick-or-treat map by LERFILM. Find and share the houses with candy within 1 mile of the Monster House.">
 <meta property="og:title" content="1 Mile Candy Zone">
 <meta property="og:description" content="West Covina trick-or-treat map. Mark where the candy is! Made with love by LERFILM.">
+<meta name="theme-color" content="#1d1530">
 <link rel="icon" href="icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@600;800&display=swap">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="apple-touch-icon" href="icon.png">
+<!-- 10/30 提速（用户："加载速度太慢"）：不用 Google 字体；地图库的样式不挡首屏；先连好底图和标记后台；一进来就去拿标记 -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
+<link rel="preconnect" href="https://candymap-api.opendrama.workers.dev" crossorigin>
+<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" media="print" onload="this.media='all'">
+<script>
+const API_URL = 'https://candymap-api.opendrama.workers.dev/pins';
+window.firstPins = fetch(API_URL, { cache: 'no-store' }).then(r => r.json()).catch(() => null);
+</script>
 <style>
-/* 布局：上面招牌 + 语言，中间大地图（浮着"这家有糖"按钮），下面图例、攻略、怪兽房子、LERFILM 署名 */
+/* 10/30 用户："现在界面还是太复杂 不方便手机操作 竖屏"。改成手机竖屏一屏：顶上一条（名字 + 语言 + ?），中间整屏地图，底下一个大按钮；
+   攻略、图例、怪兽房子、署名都收进 "?"。 */
 :root{
   --night:#1d1530; --night2:#2b2046; --paper:#fff8ec; --ink:#2a2420;
-  --orange:#f06c14; --pink:#e42e78; --green:#1c9c4e; --purple:#7c3abc; --blue:#166cd2; --yellow:#fac000; --teal:#14a0a0;
-  --display:"Luckiest Guy","Arial Black",system-ui,sans-serif; --body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --orange:#f06c14; --pink:#e42e78; --green:#1c9c4e; --purple:#7c3abc; --yellow:#fac000;
+  --display:"Arial Rounded MT Bold",ui-rounded,"SF Pro Rounded","Arial Black",system-ui,sans-serif;
+  --body:ui-rounded,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --top:calc(54px + env(safe-area-inset-top,0px));
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{margin:0}
-body{background:var(--night);color:var(--paper);font-family:var(--body);font-weight:600;-webkit-text-size-adjust:100%}
-.wrap{max-width:860px;margin:0 auto;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px))}
-header{padding-block:calc(14px + env(safe-area-inset-top,0px)) 10px;text-align:center}
-.logo{font-family:var(--display);font-size:clamp(34px,9vw,64px);line-height:.95;color:var(--orange);letter-spacing:1px;
-  text-shadow:3px 3px 0 var(--ink),-1px -1px 0 var(--ink),1px -1px 0 var(--ink),-1px 1px 0 var(--ink);transform:rotate(-2deg);margin:6px 0 4px}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+body{background:var(--night);color:var(--paper);font:600 16px var(--body);-webkit-text-size-adjust:100%}
+.bar{position:fixed;inset:0 0 auto 0;height:var(--top);z-index:800;display:flex;align-items:center;gap:8px;
+  padding:env(safe-area-inset-top,0px) max(10px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));background:var(--night);border-bottom:3px solid var(--pink)}
+.logo{flex:1;min-width:0;font:900 clamp(19px,5.6vw,26px)/1 var(--display);color:var(--orange);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px}
 .logo span{color:var(--yellow)}
-.sub{font-size:15px;opacity:.9;margin:4px 0 10px}
-.langs{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-.langs button{font:800 13px var(--body);border:2px solid var(--paper);background:transparent;color:var(--paper);border-radius:999px;padding:5px 11px;cursor:pointer}
-.langs button[aria-pressed="true"]{background:var(--yellow);border-color:var(--yellow);color:var(--ink)}
-.mapbox{position:relative;margin-top:12px;border:4px solid var(--paper);border-radius:22px;overflow:hidden;box-shadow:6px 6px 0 var(--pink)}
-#map{height:min(62vh,560px);min-height:360px;background:#e8e2d4}
-.add{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:500;font:22px var(--display);letter-spacing:.5px;
-  color:var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:999px;padding:12px 22px 9px;box-shadow:4px 4px 0 var(--ink);cursor:pointer;white-space:nowrap}
+.pill{height:38px;border:2px solid var(--paper);border-radius:999px;background:transparent;color:var(--paper);font:800 15px var(--body);padding:0 12px;flex:none}
+select.pill{appearance:none;-webkit-appearance:none;padding-right:26px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23fff8ec' stroke-width='2.4' fill='none'/%3E%3C/svg%3E") right 10px center no-repeat}
+select.pill option{color:#000}
+.pill.q{width:38px;padding:0;font-size:19px}
+#map{position:fixed;inset:var(--top) 0 0 0;background:#e8e2d4}
+.loading{position:fixed;inset:var(--top) 0 0 0;display:grid;place-items:center;color:var(--ink);font:900 20px var(--display);pointer-events:none}
+.add{position:fixed;left:50%;bottom:calc(30px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:700;width:min(88vw,380px);
+  font:900 22px/1 var(--display);color:var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:999px;padding:17px 16px;box-shadow:4px 4px 0 var(--ink);touch-action:manipulation}
 .add:active{transform:translate(-50%,2px);box-shadow:2px 2px 0 var(--ink)}
-.banner{position:absolute;left:10px;right:10px;top:10px;z-index:500;background:var(--pink);color:#fff;border:3px solid var(--ink);border-radius:16px;
-  padding:10px 12px;font-weight:800;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;justify-content:space-between}
-.banner span{flex:1 1 160px}
-.banner button{font:800 14px var(--body);background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:5px 12px;cursor:pointer}
-/* 放大缩小：大号黄按钮，竖在地图右边中间，手指好按（Leaflet 自带的小按钮关掉了） */
-.zoom{position:absolute;right:12px;top:50%;transform:translateY(-50%);z-index:500;display:flex;flex-direction:column;gap:12px}
-.zoom button{width:58px;height:58px;display:grid;place-items:center;padding:0;color:var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:16px;
-  box-shadow:4px 4px 0 var(--ink);cursor:pointer;touch-action:manipulation}
-.zoom button svg{width:30px;height:30px}
-.zoom button:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
-.zoom button:disabled{opacity:.4;cursor:default}
-.legend{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
-.chip{display:inline-flex;align-items:center;gap:6px;background:var(--night2);border:2px solid #4a3b70;border-radius:999px;padding:5px 11px 5px 7px;font-size:14px}
-.chip b{font-size:18px}
-.card{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:20px;padding:16px 18px;margin:16px 0;box-shadow:5px 5px 0 var(--orange)}
-.card h2{font:26px var(--display);margin:0 0 8px;color:var(--purple);letter-spacing:.5px}
-.tips{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.tips li{display:flex;gap:10px;align-items:flex-start;font-size:16px}
-.tips li span{font-size:20px;line-height:1.1}
-.house{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.house img{width:120px;height:120px;border-radius:18px;border:3px solid var(--ink);flex:none}
-.house p{margin:4px 0;min-width:0;flex:1 1 220px}
-.brand{text-align:center;padding-block:10px 30px;font-size:14px;opacity:.95}
-.brand a{color:var(--yellow);font:22px var(--display);letter-spacing:1px;text-decoration:none}
-.brand small{display:block;opacity:.7;margin-top:10px;font-size:12px}
+.zoom{position:fixed;right:max(10px,env(safe-area-inset-right,0px));bottom:calc(104px + env(safe-area-inset-bottom,0px));z-index:700;display:flex;flex-direction:column;gap:10px}
+.zoom button{width:50px;height:50px;display:grid;place-items:center;padding:0;color:var(--ink);background:#fff;border:3px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);touch-action:manipulation}
+.zoom button svg{width:24px;height:24px}
+.zoom button:disabled{opacity:.4}
+.banner{position:fixed;left:10px;right:10px;top:calc(var(--top) + 10px);z-index:700;background:var(--pink);color:#fff;border:3px solid var(--ink);border-radius:16px;
+  padding:12px;font-weight:800;font-size:17px;display:grid;gap:10px}
+.banner div{display:flex;gap:8px}
+.banner button{flex:1;font:800 16px var(--body);background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:999px;padding:10px 12px}
 .sheet{position:fixed;inset:auto 0 0 0;z-index:1000;background:var(--paper);color:var(--ink);border-top:4px solid var(--ink);border-radius:24px 24px 0 0;
-  padding:18px max(16px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.4);max-height:86vh;overflow:auto}
-.sheet h3{font:24px var(--display);margin:0 0 10px;color:var(--orange)}
-.types{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.types button{font:800 15px var(--body);display:flex;gap:8px;align-items:center;text-align:left;background:#fff;color:var(--ink);border:3px solid #d8cfc0;border-radius:14px;padding:10px;cursor:pointer}
-.types button b{font-size:24px}
+  padding:16px max(16px,env(safe-area-inset-left,0px)) calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.4);max-height:82dvh;overflow:auto;overscroll-behavior:contain}
+.sheet h3{font:900 22px var(--display);margin:0 0 10px;color:var(--orange)}
+.types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.types button{font:800 12px/1.15 var(--body);display:grid;justify-items:center;gap:4px;background:#fff;color:var(--ink);border:3px solid #d8cfc0;border-radius:14px;padding:8px 2px;min-height:74px}
+.types button b{font-size:28px;line-height:1}
 .types button[aria-pressed="true"]{border-color:var(--ink);background:#fff1b8}
-.sheet label{display:block;margin:12px 0 6px;font-weight:800}
-.sheet input{width:100%;font:600 16px var(--body);padding:10px 12px;border:3px solid #d8cfc0;border-radius:12px;background:#fff;color:var(--ink)}
-.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
-.go{flex:1;font:20px var(--display);background:var(--green);color:#fff;border:3px solid var(--ink);border-radius:999px;padding:11px 16px 8px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
-.go:disabled{opacity:.45;cursor:default}
-.no{font:800 15px var(--body);background:transparent;color:var(--ink);border:3px solid var(--ink);border-radius:999px;padding:10px 16px;cursor:pointer}
+.sheet input{width:100%;font:600 16px var(--body);margin-top:12px;padding:12px;border:3px solid #d8cfc0;border-radius:12px;background:#fff;color:var(--ink)}
+.row{display:flex;gap:10px;margin-top:12px}
+.go{flex:1;font:900 20px var(--display);background:var(--green);color:#fff;border:3px solid var(--ink);border-radius:999px;padding:14px 16px;box-shadow:3px 3px 0 var(--ink)}
+.go:disabled{opacity:.45}
+.no{font:800 16px var(--body);background:transparent;color:var(--ink);border:3px solid var(--ink);border-radius:999px;padding:12px 16px}
 .note{font-size:13px;opacity:.75;margin:10px 0 0}
-.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1100;background:var(--green);color:#fff;
-  border:3px solid var(--ink);border-radius:16px;padding:12px 16px;font-weight:800;max-width:min(92vw,520px);text-align:center}
+.info h4{font:900 18px var(--display);margin:16px 0 8px;color:var(--purple)}
+.info h4:first-of-type{margin-top:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:2px solid #d8cfc0;border-radius:999px;padding:4px 10px 4px 6px;font-size:14px}
+.chip b{font-size:18px}
+.tips{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.tips li{display:flex;gap:10px;font-size:15px}
+.house{display:flex;gap:12px;align-items:center}
+.house img{width:84px;height:84px;border-radius:14px;border:3px solid var(--ink);flex:none}
+.house p{margin:0;font-size:15px}
+.brand{text-align:center;margin:16px 0 4px;font-size:13px}
+.brand a{color:var(--orange);font:900 20px var(--display);text-decoration:none}
+.brand small{display:block;opacity:.7;margin-top:8px;font-size:12px}
+.toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1100;background:var(--green);color:#fff;
+  border:3px solid var(--ink);border-radius:16px;padding:12px 16px;font-weight:800;width:max-content;max-width:min(92vw,520px);text-align:center}
 .pin{font-size:26px;line-height:1;filter:drop-shadow(1px 2px 0 rgba(0,0,0,.45))}
 .pin.placing{font-size:40px;background:#fff;border:3px solid var(--ink);border-radius:50%;width:56px;height:56px;display:grid;place-items:center;box-shadow:3px 3px 0 var(--ink)}
-.mh{width:58px;height:58px;border-radius:50%;border:4px solid var(--orange);background:#000 center/cover;box-shadow:0 0 0 3px #fff,3px 4px 0 3px rgba(0,0,0,.35)}
-.leaflet-popup-content{font:700 14px var(--body)}
-button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.mh{width:54px;height:54px;border-radius:50%;border:4px solid var(--orange);background:#000 center/cover;box-shadow:0 0 0 3px #fff,3px 4px 0 3px rgba(0,0,0,.35)}
+.leaflet-popup-content{font:700 15px var(--body)}
+.leaflet-control-attribution{font-size:10px}
+button,select{cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="logo">1 Mile <span>Candy</span> Zone</div>
-    <div class="sub" data-i="sub">West Covina trick-or-treat map · around the Monster House</div>
-    <div class="langs" role="group" aria-label="Language">
-      <button data-lang="en">English</button><button data-lang="es">Español</button><button data-lang="zh">中文</button><button data-lang="vi">Tiếng Việt</button><button data-lang="ko">한국어</button>
-    </div>
-  </header>
+<header class="bar">
+  <div class="logo">1 Mile <span>Candy</span> Zone</div>
+  <select class="pill" id="lang" aria-label="Language">
+    <option value="en">EN</option><option value="es">ES</option><option value="zh">中文</option><option value="vi">VI</option><option value="ko">한국어</option>
+  </select>
+  <button class="pill q" id="infoBtn" data-ia="info" aria-label="Info">?</button>
+</header>
 
-  <div class="mapbox">
-    <div id="map" role="application" aria-label="Map"></div>
-    <div class="banner" id="banner" hidden><span data-i="tapmap">Tap the map where the candy is!</span><button id="hereBtn" data-i="here">📍 I'm here</button><button id="cancelAdd" data-i="cancel">Cancel</button></div>
-    <div class="zoom" role="group">
-      <button type="button" id="zoomIn" data-ia="zin" aria-label="Zoom in"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M15 4v22M4 15h22" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg></button>
-      <button type="button" id="zoomOut" data-ia="zout" aria-label="Zoom out"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M4 15h22" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg></button>
-    </div>
-    <button class="add" id="addBtn" data-i="add">+ This house has candy!</button>
-  </div>
-
-  <div class="legend" id="legend"></div>
-
-  <section class="card">
-    <h2 data-i="tipsTitle">Candy tips</h2>
-    <ul class="tips">
-      <li><span>💡</span><b data-i="t1">Porch light ON = come say hi!</b></li>
-      <li><span>🧑‍🧒</span><b data-i="t2">Go with a grown-up.</b></li>
-      <li><span>🔦</span><b data-i="t3">Bring a flashlight.</b></li>
-      <li><span>🚶</span><b data-i="t4">Stay on the sidewalk.</b></li>
-      <li><span>🍬</span><b data-i="t5">Grown-ups check candy before eating.</b></li>
-      <li><span>🩵</span><b data-i="t6">Teal pumpkin = allergy-friendly treats.</b></li>
-      <li><span>🙏</span><b data-i="t7">Say "Trick or treat!" and "Thank you!"</b></li>
-    </ul>
-  </section>
-
-  <section class="card" style="box-shadow:5px 5px 0 var(--purple)">
-    <h2 data-i="mhTitle">Visit the Monster House!</h2>
-    <div class="house">
-      <img src="monster.jpg" alt="The Monster House">
-      <p><b data-i="mhText">A Halloween projection show where the house wakes up, sings and dances. Shout BOO with us!</b><br><span style="opacity:.75">Oct 30 &amp; 31 · #MonsterHouseWestCovina</span></p>
-    </div>
-  </section>
-
-  <footer class="brand">
-    <div data-i="love">Made with love for our West Covina neighbors by</div>
-    <a href="https://lerfilm.com" target="_blank" rel="noopener">LERFILM.COM</a>
-    <small>Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="font:inherit;color:inherit">OpenStreetMap</a> contributors · <span data-i="privacy">We never ask for names, phone numbers or photos. Pins that don't belong get removed.</span></small>
-  </footer>
+<div class="loading" id="loading">🎃</div>
+<div id="map" role="application" aria-label="Map"></div>
+<div class="banner" id="banner" hidden><span data-i="tapmap">Tap the map where the candy is!</span>
+  <div><button id="hereBtn" data-i="here">📍 I'm here</button><button id="cancelAdd" data-i="cancel">Cancel</button></div></div>
+<div class="zoom" role="group">
+  <button type="button" id="zoomIn" data-ia="zin" aria-label="Zoom in"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M15 4v22M4 15h22" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg></button>
+  <button type="button" id="zoomOut" data-ia="zout" aria-label="Zoom out"><svg viewBox="0 0 30 30" aria-hidden="true"><path d="M4 15h22" stroke="currentColor" stroke-width="5.5" stroke-linecap="round"/></svg></button>
 </div>
+<button class="add" id="addBtn" data-i="add">+ This house has candy!</button>
 
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <h3 id="sheetTitle" data-i="whatHere">What's at this house?</h3>
-  <p class="note" style="margin:-4px 0 10px" data-i="drag">Drag the pin to move it.</p>
   <div class="types" id="types"></div>
-  <label for="tip" data-i="tipLabel">Tip (optional)</label>
-  <input id="tip" maxlength="80" autocomplete="off" data-ph="tipPh" placeholder="e.g. Big candy bowl! · No names or phone numbers">
+  <input id="tip" maxlength="80" autocomplete="off" data-ph="tipPh" aria-label="Tip" placeholder="Tip (optional) · no names or phone numbers">
   <div class="row"><button class="go" id="send" disabled data-i="send">Add it!</button><button class="no" id="close" data-i="cancel">Cancel</button></div>
-  <p class="note" data-i="check">Your pin shows up on the map right away. Please no names or phone numbers.</p>
+  <p class="note"><span data-i="drag">Drag the pin to move it.</span> <span data-i="check">Your pin shows up on the map right away. Please no names or phone numbers.</span></p>
+</div>
+
+<div class="sheet info" id="info" hidden role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+  <h4 id="infoTitle" data-i="legendTitle">On the map</h4>
+  <div class="legend" id="legend"></div>
+  <h4 data-i="tipsTitle">Candy tips</h4>
+  <ul class="tips">
+    <li><span>💡</span><span data-i="t1">Porch light ON = come say hi!</span></li>
+    <li><span>🧑‍🧒</span><span data-i="t2">Go with a grown-up.</span></li>
+    <li><span>🔦</span><span data-i="t3">Bring a flashlight.</span></li>
+    <li><span>🚶</span><span data-i="t4">Stay on the sidewalk.</span></li>
+    <li><span>🍬</span><span data-i="t5">Grown-ups check candy before eating.</span></li>
+    <li><span>🩵</span><span data-i="t6">Teal pumpkin = allergy-friendly treats.</span></li>
+    <li><span>🙏</span><span data-i="t7">Say "Trick or treat!" and "Thank you!"</span></li>
+  </ul>
+  <h4 data-i="mhTitle">Visit the Monster House!</h4>
+  <div class="house">
+    <img src="monster.jpg" alt="The Monster House" width="84" height="84" loading="lazy">
+    <p><b data-i="mhText">A Halloween projection show where the house wakes up, sings and dances. Shout BOO with us!</b><br><span style="opacity:.75">Oct 30 &amp; 31 · #MonsterHouseWestCovina</span></p>
+  </div>
+  <div class="brand">
+    <div data-i="love">Made with love for our West Covina neighbors by</div>
+    <a href="https://lerfilm.com" target="_blank" rel="noopener">LERFILM.COM</a>
+    <small>Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="font:inherit;color:inherit">OpenStreetMap</a> contributors · <span data-i="privacy">We never ask for names, phone numbers or photos. Pins that don't belong get removed.</span></small>
+  </div>
+  <div class="row"><button class="go" id="infoClose" data-i="ok">OK</button></div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin></script>
 <script>
-// 投稿后台：Google Apps Script 网页应用网址（部署后填）。空着时只能看地图，不能投稿。
-const API_URL = 'https://candymap-api.opendrama.workers.dev/pins';
 const HOUSE = [34.0608171, -117.8877025], MILE = 1609.34;
 const TYPES = [
   {id:'candy', e:'🍬'}, {id:'fullsize', e:'🍫'}, {id:'teal', e:'🩵'}, {id:'decor', e:'🎃'}, {id:'spooky', e:'👻'}
 ];
 const T = {
-  en:{sub:'West Covina trick-or-treat map · around the Monster House', add:'+ This house has candy!', tapmap:'Tap the map where the candy is!', cancel:'Cancel',
+  en:{add:'+ This house has candy!', tapmap:'Tap the map where the candy is!', cancel:'Cancel', ok:'OK', info:'Info', legendTitle:'On the map',
       tipsTitle:'Candy tips', t1:'Porch light ON = come say hi!', t2:'Go with a grown-up.', t3:'Bring a flashlight.', t4:'Stay on the sidewalk.', t5:'Grown-ups check candy before eating.', t6:'Teal pumpkin = allergy-friendly treats.', t7:'Say "Trick or treat!" and "Thank you!"',
       mhTitle:'Visit the Monster House!', mhText:'A Halloween projection show where the house wakes up, sings and dances. Shout BOO with us!', love:'Made with love for our West Covina neighbors by',
-      privacy:"We never ask for names, phone numbers or photos. Pins that don't belong get removed.", whatHere:"What's at this house?", tipLabel:'Tip (optional)', tipPh:'e.g. Big candy bowl! · No names or phone numbers', send:'Add it!',
+      privacy:"We never ask for names, phone numbers or photos. Pins that don't belong get removed.", whatHere:"What's at this house?", tipPh:'Tip (optional) · no names or phone numbers', send:'Add it!',
       check:'Your pin shows up on the map right away. Please no names or phone numbers.', thanks:'Thank you, good monster! Your pin is on the map.', soon:'Adding pins opens soon. You can already look around the map!',
       fail:"Couldn't send it. Please try again in a minute.", far:"That spot is outside the 1 mile Candy Zone.", zone:'1 mile Candy Zone',
       candy:'Has candy', fullsize:'Full-size bars!', teal:'Teal pumpkin', decor:'Awesome decorations', spooky:'Super spooky', monster:'Monster House — the show is here!',
       here:"📍 I'm here", nogps:"Couldn't find where you are. Tap the map instead.", closer:'Zoomed in. Now tap the exact house!', drag:'Drag the pin to move it.', zin:'Zoom in', zout:'Zoom out'},
-  es:{sub:'Mapa de dulces de West Covina · alrededor de la Monster House', add:'+ ¡Aquí hay dulces!', tapmap:'¡Toca el mapa donde hay dulces!', cancel:'Cancelar',
+  es:{add:'+ ¡Aquí hay dulces!', tapmap:'¡Toca el mapa donde hay dulces!', cancel:'Cancelar', ok:'OK', info:'Información', legendTitle:'En el mapa',
       tipsTitle:'Consejos', t1:'Luz del porche encendida = ¡pasa a saludar!', t2:'Ve con un adulto.', t3:'Lleva una linterna.', t4:'Camina por la banqueta.', t5:'Un adulto revisa los dulces antes de comerlos.', t6:'Calabaza turquesa = dulces sin alérgenos.', t7:'Di "¡Dulce o truco!" y "¡Gracias!"',
       mhTitle:'¡Visita la Monster House!', mhText:'Un show de proyección de Halloween: la casa despierta, canta y baila. ¡Grita BOO con nosotros!', love:'Hecho con cariño para nuestros vecinos de West Covina por',
-      privacy:'Nunca pedimos nombres, teléfonos ni fotos. Quitamos los puntos que no correspondan.', whatHere:'¿Qué hay en esta casa?', tipLabel:'Consejo (opcional)', tipPh:'Ej.: ¡Tazón grande de dulces! · Sin nombres ni teléfonos', send:'¡Agregar!',
+      privacy:'Nunca pedimos nombres, teléfonos ni fotos. Quitamos los puntos que no correspondan.', whatHere:'¿Qué hay en esta casa?', tipPh:'Consejo (opcional) · sin nombres ni teléfonos', send:'¡Agregar!',
       check:'Tu punto aparece en el mapa enseguida. Por favor, sin nombres ni teléfonos.', thanks:'¡Gracias, monstruo bueno! Tu punto ya está en el mapa.', soon:'Pronto podrás agregar puntos. ¡Ya puedes ver el mapa!',
       fail:'No se pudo enviar. Inténtalo de nuevo en un minuto.', far:'Ese lugar está fuera de la zona de 1 milla.', zone:'Zona de dulces de 1 milla',
       candy:'Hay dulces', fullsize:'¡Chocolates grandes!', teal:'Calabaza turquesa', decor:'Decoración genial', spooky:'Muy espeluznante', monster:'Monster House — ¡aquí es el show!',
       here:'📍 Estoy aquí', nogps:'No encontramos tu ubicación. Toca el mapa.', closer:'¡Más cerca! Ahora toca la casa exacta.', drag:'Arrastra el punto para moverlo.', zin:'Acercar', zout:'Alejar'},
-  zh:{sub:'West Covina 要糖地图 · 怪兽房子周围', add:'+ 这家有糖！', tapmap:'在地图上点一下有糖的地方！', cancel:'取消',
+  zh:{add:'+ 这家有糖！', tapmap:'在地图上点一下有糖的地方！', cancel:'取消', ok:'好的', info:'说明', legendTitle:'地图上的标记',
       tipsTitle:'要糖攻略', t1:'门廊灯亮着 = 欢迎来敲门！', t2:'和大人一起去。', t3:'带上手电筒。', t4:'走人行道。', t5:'糖果先给大人检查再吃。', t6:'蓝绿色南瓜 = 有防过敏的零食。', t7:'记得说"不给糖就捣蛋！"和"谢谢！"',
       mhTitle:'来看怪兽房子！', mhText:'万圣节投影秀：房子会醒来、唱歌、跳舞。和我们一起大喊 BOO！', love:'献给 West Covina 的邻居们，用爱制作 by',
-      privacy:'我们不收名字、电话或照片。不对的标记会被删掉。', whatHere:'这家有什么？', tipLabel:'小贴士（可不填）', tipPh:'例：一大碗糖！· 不要写名字或电话', send:'标上去！',
+      privacy:'我们不收名字、电话或照片。不对的标记会被删掉。', whatHere:'这家有什么？', tipPh:'小贴士（可不填）· 不要写名字或电话', send:'标上去！',
       check:'标上去马上就会出现在地图上。请不要写名字或电话。', thanks:'谢谢你，好怪兽！你的标记已经在地图上了。', soon:'投稿马上开放，现在可以先看地图！',
       fail:'没发出去，请过一分钟再试。', far:'这个位置在 1 英里糖果圈外面。', zone:'1 英里糖果圈',
       candy:'有糖', fullsize:'整条大巧克力！', teal:'蓝绿南瓜', decor:'装饰超酷', spooky:'超级吓人', monster:'怪兽房子——投影秀在这里！',
       here:'📍 我就在这家', nogps:'找不到你的位置，请在地图上点一下。', closer:'放大了，再点一下那一家！', drag:'按住标记可以拖动位置。', zin:'放大', zout:'缩小'},
-  vi:{sub:'Bản đồ xin kẹo West Covina · quanh Monster House', add:'+ Nhà này có kẹo!', tapmap:'Chạm vào bản đồ nơi có kẹo!', cancel:'Hủy',
+  vi:{add:'+ Nhà này có kẹo!', tapmap:'Chạm vào bản đồ nơi có kẹo!', cancel:'Hủy', ok:'OK', info:'Thông tin', legendTitle:'Trên bản đồ',
       tipsTitle:'Mẹo xin kẹo', t1:'Đèn hiên sáng = mời ghé chào!', t2:'Đi cùng người lớn.', t3:'Mang theo đèn pin.', t4:'Đi trên vỉa hè.', t5:'Người lớn kiểm tra kẹo trước khi ăn.', t6:'Bí ngô xanh ngọc = quà không gây dị ứng.', t7:'Nói "Cho kẹo hay bị ghẹo!" và "Cảm ơn!"',
       mhTitle:'Ghé thăm Monster House!', mhText:'Chương trình chiếu Halloween: ngôi nhà thức dậy, hát và nhảy. Cùng hét BOO nhé!', love:'Làm bằng cả tấm lòng cho hàng xóm West Covina bởi',
-      privacy:'Chúng tôi không hỏi tên, số điện thoại hay hình ảnh. Điểm không phù hợp sẽ bị xóa.', whatHere:'Nhà này có gì?', tipLabel:'Mẹo (không bắt buộc)', tipPh:'Ví dụ: Tô kẹo thật to! · Không ghi tên hay số điện thoại', send:'Thêm vào!',
+      privacy:'Chúng tôi không hỏi tên, số điện thoại hay hình ảnh. Điểm không phù hợp sẽ bị xóa.', whatHere:'Nhà này có gì?', tipPh:'Mẹo (không bắt buộc) · không ghi tên hay số điện thoại', send:'Thêm vào!',
       check:'Điểm của bạn hiện trên bản đồ ngay. Vui lòng không ghi tên hay số điện thoại.', thanks:'Cảm ơn bạn, quái vật tốt! Điểm của bạn đã có trên bản đồ.', soon:'Sắp mở chức năng thêm điểm. Bạn đã có thể xem bản đồ!',
       fail:'Chưa gửi được. Vui lòng thử lại sau một phút.', far:'Chỗ đó nằm ngoài vùng kẹo 1 dặm.', zone:'Vùng kẹo 1 dặm',
       candy:'Có kẹo', fullsize:'Thanh kẹo cỡ lớn!', teal:'Bí ngô xanh ngọc', decor:'Trang trí tuyệt vời', spooky:'Siêu ma quái', monster:'Monster House — chương trình ở đây!',
       here:'📍 Tôi đang ở đây', nogps:'Không tìm thấy vị trí của bạn. Hãy chạm vào bản đồ.', closer:'Đã phóng to. Giờ hãy chạm đúng ngôi nhà!', drag:'Kéo điểm để di chuyển.', zin:'Phóng to', zout:'Thu nhỏ'},
-  ko:{sub:'웨스트 코비나 트릭 오어 트릿 지도 · 몬스터 하우스 주변', add:'+ 이 집에 사탕 있어요!', tapmap:'사탕 있는 곳을 지도에서 눌러 주세요!', cancel:'취소',
+  ko:{add:'+ 이 집에 사탕 있어요!', tapmap:'사탕 있는 곳을 지도에서 눌러 주세요!', cancel:'취소', ok:'확인', info:'안내', legendTitle:'지도 표시',
       tipsTitle:'사탕 받기 팁', t1:'현관 불이 켜져 있으면 = 인사하러 가요!', t2:'어른과 함께 다녀요.', t3:'손전등을 챙겨요.', t4:'인도로 걸어요.', t5:'먹기 전에 어른이 사탕을 확인해요.', t6:'청록색 호박 = 알레르기 걱정 없는 간식.', t7:'"트릭 오어 트릿!"과 "감사합니다!"라고 말해요.',
       mhTitle:'몬스터 하우스에 놀러 오세요!', mhText:'집이 깨어나 노래하고 춤추는 핼러윈 프로젝션 쇼. 함께 BOO 하고 외쳐요!', love:'웨스트 코비나 이웃을 위해 사랑을 담아 만든',
-      privacy:'이름, 전화번호, 사진은 절대 받지 않아요. 맞지 않는 표시는 지워요.', whatHere:'이 집에는 뭐가 있나요?', tipLabel:'팁 (선택)', tipPh:'예: 사탕 한가득! · 이름이나 전화번호는 쓰지 마세요', send:'추가하기!',
+      privacy:'이름, 전화번호, 사진은 절대 받지 않아요. 맞지 않는 표시는 지워요.', whatHere:'이 집에는 뭐가 있나요?', tipPh:'팁 (선택) · 이름이나 전화번호는 쓰지 마세요', send:'추가하기!',
       check:'표시는 바로 지도에 나타나요. 이름이나 전화번호는 쓰지 마세요.', thanks:'고마워요, 착한 몬스터! 표시가 지도에 올라갔어요.', soon:'곧 표시를 추가할 수 있어요. 지금은 지도를 둘러보세요!',
       fail:'보내지 못했어요. 1분 뒤에 다시 시도해 주세요.', far:'그곳은 1마일 사탕 구역 밖이에요.', zone:'1마일 사탕 구역',
       candy:'사탕 있음', fullsize:'큰 초콜릿 바!', teal:'청록색 호박', decor:'멋진 장식', spooky:'엄청 무서움', monster:'몬스터 하우스 — 쇼는 여기서!',
@@ -200,48 +199,47 @@ let lang = 'en';
 try { const s = localStorage.getItem('cz_lang'); if (s && T[s]) lang = s; else { const n = (navigator.language || 'en').slice(0, 2); if (T[n]) lang = n; } } catch (e) {}
 const t = k => (T[lang] && T[lang][k]) || T.en[k];
 const $ = s => document.querySelector(s);
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function toast(msg, bad) { const el = $('#toast'); el.textContent = msg; el.style.background = bad ? 'var(--pink)' : 'var(--green)'; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => el.hidden = true, 4200); }
 
-const map = L.map('map', { zoomControl: false }).setView(HOUSE, 15);   // 自带的小 +/- 关掉，用下面的大按钮
+const map = L.map('map', { zoomControl: false }).setView(HOUSE, 14);   // 先给个位置（圆圈算范围要用），下面再按 1 英里圈铺满屏幕
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {           // OSM 官方底图：不要密钥，按使用规定署名（CARTO 现在要 API key）
-  maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
-const zone = L.circle(HOUSE, { radius: MILE, color: '#e42e78', weight: 4, dashArray: '10 10', fillColor: '#fac000', fillOpacity: .06 }).addTo(map);
-map.fitBounds(zone.getBounds(), { padding: [10, 10] });
-const mh = L.marker(HOUSE, { icon: L.divIcon({ className: '', html: '<div class="mh" style="background-image:url(monster.jpg)"></div>', iconSize: [58, 58], iconAnchor: [29, 29] }) }).addTo(map);
+  maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', crossOrigin: true
+}).on('load', () => $('#loading').hidden = true).addTo(map);
+map.attributionControl.setPrefix(false);
+const zone = L.circle(HOUSE, { radius: MILE, color: '#e42e78', weight: 4, dashArray: '10 10', fillColor: '#fac000', fillOpacity: .06, interactive: false }).addTo(map);
+map.fitBounds(zone.getBounds(), { paddingTopLeft: [6, 6], paddingBottomRight: [6, 80] });   // 底下留出大按钮的位置
+const mh = L.marker(HOUSE, { icon: L.divIcon({ className: '', html: '<div class="mh" style="background-image:url(monster.jpg)"></div>', iconSize: [54, 54], iconAnchor: [27, 27] }) }).addTo(map);
 const pinLayer = L.layerGroup().addTo(map);
 const emojiOf = id => (TYPES.find(x => x.id === id) || TYPES[0]).e;
 const pinIcon = id => L.divIcon({ className: '', html: `<div class="pin">${emojiOf(id)}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] });
 const placingIcon = id => L.divIcon({ className: '', html: `<div class="pin placing">${emojiOf(id)}</div>`, iconSize: [56, 56], iconAnchor: [28, 28] });   // 正在放的那一个：大、不透明，好找好拖
 let pins = [];
-
-function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function drawPins() {
   pinLayer.clearLayers();
   for (const p of pins) L.marker([p.lat, p.lng], { icon: pinIcon(p.type) }).bindPopup(`<b>${emojiOf(p.type)} ${esc(t(p.type))}</b>${p.tip ? '<br>' + esc(p.tip) : ''}`).addTo(pinLayer);
 }
+function takePins(j) { if (j && j.ok) pins = (j.pins || []).filter(p => isFinite(p.lat) && isFinite(p.lng)); drawPins(); }
 async function loadPins() {
-  if (!API_URL) { drawPins(); return; }
-  try { const r = await fetch(API_URL, { cache: 'no-store' }); const j = await r.json(); if (j && j.ok) pins = (j.pins || []).filter(p => isFinite(p.lat) && isFinite(p.lng)); } catch (e) {}
-  drawPins();
+  try { const r = await fetch(API_URL, { cache: 'no-store' }); takePins(await r.json()); } catch (e) {}
 }
 
 function applyLang() {
-  document.documentElement.lang = lang;
+  document.documentElement.lang = lang; $('#lang').value = lang;
   document.querySelectorAll('[data-i]').forEach(el => el.textContent = t(el.dataset.i));
   document.querySelectorAll('[data-ph]').forEach(el => el.placeholder = t(el.dataset.ph));
   document.querySelectorAll('[data-ia]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.ia)); el.title = t(el.dataset.ia); });
-  document.querySelectorAll('.langs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
   $('#legend').innerHTML = TYPES.map(x => `<span class="chip"><b>${x.e}</b>${esc(t(x.id))}</span>`).join('') + `<span class="chip"><b>🏠</b>${esc(t('monster'))}</span>`;
-  $('#types').innerHTML = TYPES.map(x => `<button type="button" data-type="${x.id}" aria-pressed="false"><b>${x.e}</b>${esc(t(x.id))}</button>`).join('');
-  mh.bindPopup(`<b>🏠 ${esc(t('monster'))}</b>`); zone.bindTooltip(t('zone')); drawPins();
+  $('#types').innerHTML = TYPES.map(x => `<button type="button" data-type="${x.id}" aria-pressed="${x.id === chosen}"><b>${x.e}</b>${esc(t(x.id))}</button>`).join('');
+  mh.bindPopup(`<b>🏠 ${esc(t('monster'))}</b>`); drawPins();
 }
-document.querySelectorAll('.langs button').forEach(b => b.onclick = () => { lang = b.dataset.lang; try { localStorage.setItem('cz_lang', lang); } catch (e) {} applyLang(); });
+$('#lang').onchange = e => { lang = e.target.value; try { localStorage.setItem('cz_lang', lang); } catch (x) {} applyLang(); };
+$('#infoBtn').onclick = () => { $('#info').hidden = false; };
+$('#infoClose').onclick = () => { $('#info').hidden = true; };
 
 let adding = false, spot = null, chosen = null, tmp = null;
-function toast(msg, bad) { const el = $('#toast'); el.textContent = msg; el.style.background = bad ? 'var(--pink)' : 'var(--green)'; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => el.hidden = true, 4200); }
 function setAdding(on) { adding = on; $('#banner').hidden = !on; $('#addBtn').hidden = on; map.getContainer().style.cursor = on ? 'crosshair' : ''; }
-function closeSheet() { $('#sheet').hidden = true; if (tmp) { map.removeLayer(tmp); tmp = null; } spot = null; chosen = null; }
-// 放大缩小：到头了按钮变灰
+function closeSheet() { $('#sheet').hidden = true; $('#addBtn').hidden = false; if (tmp) { map.removeLayer(tmp); tmp = null; } spot = null; chosen = null; }
 function zoomState() { $('#zoomIn').disabled = map.getZoom() >= map.getMaxZoom(); $('#zoomOut').disabled = map.getZoom() <= map.getMinZoom(); }
 $('#zoomIn').onclick = () => map.zoomIn();
 $('#zoomOut').onclick = () => map.zoomOut();
@@ -249,18 +247,17 @@ map.on('zoomend', zoomState);
 
 // 标记：先点"这家有糖" → 在地图上点（太远看不清房子就先放大，再点一下）或按"我就在这家"用手机定位 → 标记能拖动微调 → 选类型 → 发送
 const NEAR = 17;
-$('#addBtn').onclick = () => { if (!API_URL) { toast(t('soon')); return; } setAdding(true); };
+$('#addBtn').onclick = () => { $('#info').hidden = true; setAdding(true); };
 $('#cancelAdd').onclick = () => setAdding(false);
 $('#close').onclick = closeSheet;
 function openSheet(latlng) {
   if (map.distance(latlng, HOUSE) > MILE * 1.45) { toast(t('far'), true); return; }
-  setAdding(false); spot = latlng;
+  setAdding(false); $('#addBtn').hidden = true; spot = latlng;
   tmp = L.marker(spot, { icon: placingIcon(chosen || 'candy'), draggable: true }).addTo(map);
   tmp.on('dragend', () => { const p = tmp.getLatLng(); if (map.distance(p, HOUSE) > MILE * 1.45) { tmp.setLatLng(spot); toast(t('far'), true); } else spot = p; });
-  // 底部面板会盖住地图下半截：标记放到地图上方四分之一处，地图顶到屏幕最上面
+  // 底部面板会盖住地图下半截：标记放到地图上方
   map.setView(spot, Math.max(map.getZoom(), NEAR + 1), { animate: false });
   map.panBy([0, map.getSize().y * 0.22], { animate: false });
-  $('.mapbox').scrollIntoView({ block: 'start', behavior: 'smooth' });
   $('#tip').value = ''; $('#send').disabled = true; document.querySelectorAll('#types button').forEach(b => b.setAttribute('aria-pressed', 'false'));
   $('#sheet').hidden = false;
 }
@@ -288,12 +285,12 @@ $('#send').onclick = async () => {
   $('#send').disabled = true;
   try {
     const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
-    const j = await r.json().catch(() => ({ ok: false, error: 'x' }));   // 读不出回执（后台没开好、跳到登录页）就当没发出去，不能骗孩子说成功了
+    const j = await r.json().catch(() => ({ ok: false, error: 'x' }));   // 读不出回执（后台没开好）就当没发出去，不能骗孩子说成功了
     if (j.ok === false) throw new Error(j.error || 'x');
     closeSheet(); await loadPins(); toast(t('thanks'));   // 不用审核：发出去马上从后台重读，自己的标记直接出现
   } catch (e) { $('#send').disabled = false; toast(String(e.message) === 'far' ? t('far') : t('fail'), true); }
 };
-applyLang(); zoomState(); loadPins(); setInterval(loadPins, 60000);
+applyLang(); zoomState(); window.firstPins.then(takePins); setInterval(loadPins, 60000);
 </script>
 </body>
 </html>
